@@ -1,0 +1,39 @@
+#version 430 core
+
+layout(local_size_x = 16, local_size_y = 16) in;
+
+layout(r32f, binding = 0) uniform image2D uHeightMap;
+layout(r32f, binding = 1) uniform image2D uAccumulationMap;
+layout(rg16f, binding = 2) uniform image2D uFlowDirectionMap;
+
+void main() {
+    ivec2 texel = ivec2(gl_GlobalInvocationID.xy);
+    ivec2 size = imageSize(uHeightMap);
+
+    if (texel.x >= size.x || texel.y >= size.y) return;
+
+    // 1. D8 Flow Direction Detection
+    float h = imageLoad(uHeightMap, texel).r;
+    float minH = h;
+    ivec2 flowTo = ivec2(0, 0);
+
+    for (int x = -1; x <= 1; x++) {
+        for (int y = -1; y <= 1; y++) {
+            if (x == 0 && y == 0) continue;
+            ivec2 neighbor = texel + ivec2(x, y);
+            float nH = imageLoad(uHeightMap, neighbor).r;
+            if (nH < minH) {
+                minH = nH;
+                flowTo = ivec2(x, y);
+            }
+        }
+    }
+
+    // 2. Store Flow Direction
+    imageStore(uFlowDirectionMap, texel, vec4(vec2(flowTo), 0, 0));
+
+    // 3. Flow Accumulation (Simplified pass - usually requires multiple iterations or a sorted pass)
+    // For this shader, we initialize the rain-drop value
+    float rainfall = 1.0; 
+    imageStore(uAccumulationMap, texel, vec4(rainfall, 0, 0, 0));
+}

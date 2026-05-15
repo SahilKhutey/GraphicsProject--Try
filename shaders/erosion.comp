@@ -1,0 +1,54 @@
+#version 430 core
+
+layout(local_size_x = 16, local_size_y = 16) in;
+
+layout(r32f, binding = 0) uniform image2D uHeightMap;
+layout(rgba16f, binding = 1) uniform image2D uWaterSedimentMap; // R: Water, G: Sediment, B: VelocityX, A: VelocityZ
+
+uniform float uErosionRate;
+uniform float uDepositionRate;
+uniform float uGravity;
+uniform float uEvaporation;
+
+void main() {
+    ivec2 texel = ivec2(gl_GlobalInvocationID.xy);
+    ivec2 size = imageSize(uHeightMap);
+
+    if (texel.x >= size.x || texel.y >= size.y) return;
+
+    // 1. Fetch Current State
+    float h = imageLoad(uHeightMap, texel).r;
+    vec4 ws = imageLoad(uWaterSedimentMap, texel);
+    float water = ws.r;
+    float sediment = ws.g;
+
+    // 2. Calculate Gradient (Downhill direction)
+    float hL = imageLoad(uHeightMap, texel + ivec2(-1, 0)).r;
+    float hR = imageLoad(uHeightMap, texel + ivec2(1, 0)).r;
+    float hU = imageLoad(uHeightMap, texel + ivec2(0, 1)).r;
+    float hD = imageLoad(uHeightMap, texel + ivec2(0, -1)).r;
+
+    vec2 gradient = vec2(hR - hL, hU - hD);
+    float slope = length(gradient);
+
+    // 3. Fluid Flow Accumulation (Simplified for Compute)
+    float velocity = sqrt(slope * uGravity);
+    float capacity = max(slope, 0.01) * velocity * water * 4.0;
+
+    // 4. Erosion / Deposition logic
+    if (sediment > capacity) {
+        float deposit = (sediment - capacity) * uDepositionRate;
+        h += deposit;
+        sediment -= deposit;
+    } else {
+        float erode = (capacity - sediment) * uErosionRate;
+        h -= erode;
+        sediment += erode;
+    }
+
+    // 5. Evaporation and Update
+    water *= (1.0 - uEvaporation);
+
+    imageStore(uHeightMap, texel, vec4(h, 0, 0, 0));
+    imageStore(uWaterSedimentMap, texel, vec4(water, sediment, gradient.x, gradient.y));
+}

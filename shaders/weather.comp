@@ -1,0 +1,44 @@
+#version 430 core
+
+layout(local_size_x = 16, local_size_y = 16) in;
+
+layout(rgba16f, binding = 0) uniform image2D uWeatherMap; // R: Temp, G: Humidity, B: Pressure, A: WindIntensity
+layout(r32f, binding = 1) uniform image2D uRainfallMap;
+
+uniform float uTime;
+uniform float uSolarEnergy;
+uniform float uLapseRate = 0.0065; // 6.5C per 1000m
+
+void main() {
+    ivec2 texel = ivec2(gl_GlobalInvocationID.xy);
+    ivec2 size = imageSize(uWeatherMap);
+
+    if (texel.x >= size.x || texel.y >= size.y) return;
+
+    // 1. Fetch Current State
+    vec4 state = imageLoad(uWeatherMap, texel);
+    float temp = state.r;
+    float humidity = state.g;
+    float pressure = state.b;
+
+    // 2. Solar & Altitude Simulation
+    // In a real pass, we'd sample the HeightMap here
+    float height = 0.0; // Placeholder for height sampling
+    temp = uSolarEnergy - (height * uLapseRate);
+
+    // 3. Pressure-Wind Dynamics
+    // Wind flows from High to Low pressure
+    vec3 grad;
+    grad.x = imageLoad(uWeatherMap, texel + ivec2(1, 0)).b - imageLoad(uWeatherMap, texel + ivec2(-1, 0)).b;
+    grad.y = imageLoad(uWeatherMap, texel + ivec2(0, 1)).b - imageLoad(uWeatherMap, texel + ivec2(0, -1)).b;
+    
+    float windIntensity = length(grad.xy);
+
+    // 4. Cloud & Rain Formation
+    float cloudDensity = humidity * (1.0 - temp / 40.0); // Simple condensation model
+    float rainfall = max(cloudDensity - 0.7, 0.0) * 0.1;
+
+    // 5. Update Maps
+    imageStore(uWeatherMap, texel, vec4(temp, humidity, pressure, windIntensity));
+    imageStore(uRainfallMap, texel, vec4(rainfall, 0, 0, 0));
+}

@@ -1,0 +1,68 @@
+#version 430 core
+
+layout(local_size_x = 16, local_size_y = 16) in;
+
+layout(rgba16f, binding = 0) uniform image2D uSSRMap;
+uniform sampler2D gDepth;
+uniform sampler2D gNormal;
+uniform sampler2D gSceneColor;
+
+uniform mat4 projection;
+uniform mat4 view;
+uniform mat4 invProj;
+
+// 1. Ray-Marching Helper
+bool RayMarch(vec3 start, vec3 dir, out vec2 hitUV) {
+    vec3 currentPos = start;
+    float stepSize = 0.1;
+    
+    for(int i = 0; i < 64; i++) {
+        currentPos += dir * stepSize;
+        
+        vec4 projected = projection * vec4(currentPos, 1.0);
+        projected.xyz /= projected.w;
+        vec2 uv = projected.xy * 0.5 + 0.5;
+        
+        if (uv.x < 0.0 || uv.x > 1.0 || uv.y < 0.0 || uv.y > 1.0) return false;
+        
+        float depth = texture(gDepth, uv).r;
+        if (currentPos.z < depth && abs(currentPos.z - depth) < 0.2) {
+            hitUV = uv;
+            return true;
+        }
+    }
+    return false;
+}
+
+void main() {
+    ivec2 texel = ivec2(gl_GlobalInvocationID.xy);
+    ivec2 size = imageSize(uSSRMap);
+    if (any(greaterThanEqual(texel, size))) return;
+
+    vec2 uv = vec2(texel) / vec2(size);
+    float depth = texture(gDepth, uv).r;
+    vec3 normal = texture(gNormal, uv).rgb;
+    
+    // 2. Reconstruct View-Space Position
+    vec3 fragPos = vec3(0.0); // Placeholder for invProj transform
+    vec3 viewDir = normalize(fragPos);
+    
+    // 3. Reflection Vector
+    vec3 reflectDir = reflect(viewDir, normal);
+    
+    // 4. Trace & Resolve
+    vec2 hitUV;
+    vec3 reflectionColor = vec3(0.0);
+    float hitFactor = 0.0;
+
+    if (RayMarch(fragPos, reflectDir, hitUV)) {
+        reflectionColor = texture(gSceneColor, hitUV).rgb;
+        hitFactor = 1.0;
+        
+        // Edge Fading
+        vec2 edgeFactor = smoothstep(0.0, 0.2, hitUV) * (1.0 - smoothstep(0.8, 1.0, hitUV));
+        hitFactor *= edgeFactor.x * edgeFactor.y;
+    }
+
+    imageStore(uSSRMap, texel, vec4(reflectionColor, hitFactor));
+}

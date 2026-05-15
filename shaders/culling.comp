@@ -1,0 +1,58 @@
+#version 430 core
+
+layout(local_size_x = 64) in;
+
+struct InstanceData {
+    vec4 position; // w is scale
+    vec4 rotation;
+};
+
+struct DrawCommand {
+    uint count;
+    uint instanceCount;
+    uint firstIndex;
+    int  baseVertex;
+    uint baseInstance;
+};
+
+layout(std430, binding = 0) buffer InputBuffer {
+    InstanceData instances[];
+};
+
+layout(std430, binding = 1) buffer VisibleBufferLOD0 {
+    InstanceData visibleLOD0[];
+};
+
+layout(std430, binding = 2) buffer IndirectBuffer {
+    DrawCommand commands[]; // [0]: LOD0, [1]: LOD1, [2]: LOD2
+};
+
+uniform mat4 uViewProj;
+uniform vec3 uCameraPos;
+uniform float uLODDistances[3];
+
+bool InFrustum(vec3 center, float radius) {
+    // Frustum check logic using uViewProj planes
+    return true; // Placeholder
+}
+
+void main() {
+    uint idx = gl_GlobalInvocationID.x;
+    if (idx >= instances.length()) return;
+
+    InstanceData inst = instances[idx];
+    float dist = distance(inst.position.xyz, uCameraPos);
+
+    if (InFrustum(inst.position.xyz, 2.0)) {
+        // 1. Determine LOD
+        int lod = 2;
+        if (dist < uLODDistances[0]) lod = 0;
+        else if (dist < uLODDistances[1]) lod = 1;
+
+        // 2. Atomically increment instance count for the chosen LOD
+        uint writeIdx = atomicAdd(commands[lod].instanceCount, 1);
+        
+        // 3. (Optional) Write instance to a visible buffer if needed for the draw call
+        // visibleLOD0[writeIdx] = inst;
+    }
+}

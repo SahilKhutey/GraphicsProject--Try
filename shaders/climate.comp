@@ -1,0 +1,41 @@
+#version 430 core
+
+layout(local_size_x = 16, local_size_y = 16) in;
+
+layout(rgba16f, binding = 0) uniform image2D uClimateMap; // R: Temp, G: Humidity, B: Rainfall, A: Wind
+layout(r32f, binding = 1) uniform image2D uHeightMap;
+
+uniform float uPlanetRadius;
+uniform float uSolarIntensity;
+uniform float uTime;
+
+void main() {
+    ivec2 texel = gl_GlobalInvocationID.xy;
+    ivec2 size = imageSize(uClimateMap);
+    if (any(greaterThanEqual(texel, size))) return;
+
+    // 1. Latitude Calculation
+    float latitude = (float(texel.y) / float(size.y)) * 180.0 - 90.0;
+    float absLat = abs(latitude);
+
+    // 2. Solar Radiation Model
+    float solarScale = cos(radians(latitude));
+    float temp = uSolarIntensity * solarScale;
+
+    // 3. Altitude Cooling (Lapse Rate)
+    float height = imageLoad(uHeightMap, texel).r;
+    temp -= (height * 0.0065); // 6.5C per 1000m
+
+    // 4. Atmospheric Circulation (Hadley Cells)
+    // Rising air at Equator (0), sinking at 30, rising at 60
+    float circulation = cos(radians(latitude * 3.0));
+    float rainfall = max(circulation, 0.0) * (temp / 40.0);
+
+    // 5. Humidity Transport (Simulated Advection)
+    float humidity = 0.5; // Base humidity
+    if (absLat < 10.0) humidity += 0.4; // Tropical belt
+    if (absLat > 25.0 && absLat < 35.0) humidity -= 0.3; // Desert belt
+
+    // Store Climate State
+    imageStore(uClimateMap, texel, vec4(temp, humidity, rainfall, solarScale));
+}

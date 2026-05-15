@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#4f46e5" />
+  <title>Aether Engine Dashboard</title>
+  <link rel="icon" type="image/svg+xml" href="public/aether-launch-icon.svg" />
+  <style>
+    * { box-sizing: border-box; }
+    body { margin: 0; min-height: 100vh; background: #030712; color: #f4f4f5; font-family: Inter, Segoe UI, Arial, sans-serif; }
+    button { font: inherit; cursor: pointer; }
+    .app { display: grid; grid-template-columns: 80px 1fr; min-height: 100vh; background: #030712; }
+    .side { display: flex; flex-direction: column; align-items: center; gap: 16px; padding: 24px 14px; border-right: 1px solid #27272a; background: #09090b; }
+    .brand { width: 48px; height: 48px; border: 0; border-radius: 14px; padding: 0; overflow: hidden; background: #4f46e5; box-shadow: 0 12px 28px rgba(79,70,229,.28); }
+    .brand img { width: 100%; height: 100%; display: block; }
+    .nav { display: flex; flex-direction: column; gap: 14px; flex: 1; margin-top: 18px; }
+    .icon-btn { width: 48px; height: 48px; border: 1px solid transparent; border-radius: 12px; background: transparent; color: #71717a; }
+    .icon-btn.active, .icon-btn:hover { background: #27272a; color: #a5b4fc; border-color: #3f3f46; }
+    .main { display: grid; grid-template-rows: 64px 1fr 48px; min-width: 0; }
+    header, footer { display: flex; align-items: center; justify-content: space-between; border-color: #27272a; background: rgba(9,9,11,.82); }
+    header { border-bottom: 1px solid #27272a; padding: 0 28px; }
+    footer { border-top: 1px solid #27272a; padding: 0 28px; color: #a1a1aa; font-size: 11px; text-transform: uppercase; letter-spacing: .08em; }
+    h1 { margin: 0; font-size: 14px; letter-spacing: .14em; text-transform: uppercase; color: #d4d4d8; }
+    .header-left, .actions, .status, .metrics { display: flex; align-items: center; gap: 14px; }
+    .divider { width: 1px; height: 18px; background: #27272a; }
+    .tool { height: 36px; min-width: 36px; border-radius: 10px; border: 1px solid #27272a; background: #18181b; color: #d4d4d8; }
+    .primary { height: 36px; border: 0; border-radius: 10px; background: #4f46e5; color: white; padding: 0 16px; font-weight: 700; }
+    .workspace { display: grid; grid-template-columns: minmax(420px, 1fr) 360px; gap: 24px; padding: 24px; min-height: 0; }
+    .viewport { position: relative; min-height: 520px; overflow: hidden; border: 1px solid #27272a; border-radius: 28px; background: radial-gradient(circle at 50% 45%, #272743, #18181b 55%, #09090b); }
+    .stream { position: absolute; inset: 0; display: grid; place-items: center; color: rgba(165,180,252,.38); text-transform: uppercase; letter-spacing: .12em; font-size: 12px; }
+    .pill-row { position: absolute; top: 24px; left: 24px; display: flex; gap: 10px; }
+    .pill { border: 1px solid rgba(255,255,255,.1); border-radius: 999px; background: rgba(0,0,0,.42); padding: 7px 11px; font-size: 10px; font-weight: 800; text-transform: uppercase; }
+    .position { position: absolute; left: 24px; bottom: 24px; }
+    .position small { display: block; color: #a1a1aa; margin-bottom: 6px; }
+    .floating { position: absolute; right: 24px; bottom: 24px; display: flex; gap: 10px; }
+    .panel-stack { display: flex; flex-direction: column; gap: 24px; min-height: 0; overflow: auto; }
+    .panel { border: 1px solid #27272a; border-radius: 24px; background: #09090b; padding: 24px; }
+    .panel h2 { margin: 0 0 16px; font-size: 12px; letter-spacing: .18em; text-transform: uppercase; color: #8b9ac8; }
+    .preset { display: flex; justify-content: space-between; width: 100%; margin-bottom: 10px; border: 1px solid #27272a; border-radius: 12px; background: #18181b; color: #d4d4d8; padding: 13px 16px; }
+    .preset.active { border-color: #6366f1; background: rgba(79,70,229,.18); color: white; }
+    .control { margin-bottom: 18px; }
+    .control-line { display: flex; justify-content: space-between; font-size: 12px; color: #d4d4d8; margin-bottom: 9px; }
+    .bar { height: 6px; border-radius: 999px; background: #27272a; overflow: hidden; }
+    .fill { height: 100%; background: #6366f1; }
+    .modules { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    .module { display: flex; justify-content: space-between; border: 1px solid #27272a; border-radius: 10px; background: #18181b; color: #d4d4d8; padding: 10px 12px; font-size: 11px; font-weight: 800; }
+    .module.off { border-color: rgba(248,113,113,.4); color: #fecaca; }
+    .dot { width: 7px; height: 7px; border-radius: 50%; background: #22c55e; align-self: center; }
+    .module.off .dot { background: #f87171; }
+    .feed { margin-top: 18px; border-top: 1px solid #27272a; padding-top: 16px; color: #a5b4fc; font-size: 11px; line-height: 1.5; }
+    .ok { width: 8px; height: 8px; border-radius: 50%; background: #22c55e; }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <aside class="side">
+      <button class="brand" title="Aether Engine"><img src="public/aether-launch-icon.svg" alt="Aether Engine"></button>
+      <nav class="nav" id="tabs"></nav>
+      <button class="icon-btn" id="settings" title="Settings">⚙</button>
+    </aside>
+    <main class="main">
+      <header>
+        <div class="header-left"><h1>Aether Engine V3.5</h1><div class="divider"></div><span>Session: Procedural_Planet_01</span></div>
+        <div class="actions">
+          <button class="tool" id="play">⏸</button>
+          <button class="tool" id="refresh">↻</button>
+          <button class="primary" id="export">Export Planet</button>
+        </div>
+      </header>
+      <section class="workspace">
+        <div class="viewport">
+          <div class="stream">Aether Simulation Stream Active</div>
+          <div class="pill-row" id="overlay"><div class="pill">Live Telemetry</div><div class="pill">Res: 4K Native</div></div>
+          <div class="position"><small>Position</small><strong>X: 142.4&nbsp;&nbsp;Y: 2.1&nbsp;&nbsp;Z: -89.4</strong></div>
+          <div class="floating"><button class="tool" id="view">◉</button><button class="tool" id="layers">▣</button></div>
+        </div>
+        <div class="panel-stack">
+          <section class="panel"><h2>World Presets</h2><div id="presets"></div></section>
+          <section class="panel">
+            <h2 id="controlsTitle">World Controls</h2>
+            <div id="controls"></div>
+            <div class="modules" id="modules"></div>
+            <div class="feed"><strong>SUGGESTION:</strong> Increase moisture levels by 14% to stabilize vegetation density in Tundra biomes.</div>
+          </section>
+        </div>
+      </section>
+      <footer>
+        <div class="status"><span class="ok"></span><span>Simulation Stable</span><span>FPS: <strong>144.2</strong></span><span>Refresh: <strong id="refreshState">Not refreshed</strong></span></div>
+        <div class="metrics"><span>Preset: <strong id="presetState">Earth-like 01</strong></span><span>Layers: <strong id="layersState">Visible</strong></span><span id="settingsState"></span></div>
+      </footer>
+    </main>
+  </div>
+  <script>
+    const tabs = ['World', 'Climate', 'Ecosystem', 'Oceans', 'Atmosphere', 'Rendering', 'Metrics'];
+    const presets = ['Earth-like 01', 'Alien Tundra', 'Volcanic Rift', 'Tropical Archipelago'];
+    const params = [['Global Temperature', 24, '°C', 50], ['Atmospheric Humidity', 65, '%', 100], ['Vegetation Density', .8, '', 2], ['Erosion Intensity', 1.2, 'm/s', 2]];
+    const modules = ['SSAO', 'SSR', 'SSGI', 'TAA'];
+    const state = { tab: 'World', preset: 'Earth-like 01', playing: true, overlay: true, layers: true, settings: false, modules: Object.fromEntries(modules.map(m => [m, true])) };
+    const $ = (id) => document.getElementById(id);
+    function render() {
+      $('tabs').innerHTML = tabs.map(t => `<button class="icon-btn ${state.tab === t ? 'active' : ''}" data-tab="${t}" title="${t}">${t[0]}</button>`).join('');
+      $('presets').innerHTML = presets.map(p => `<button class="preset ${state.preset === p ? 'active' : ''}" data-preset="${p}"><span>${p}</span><span>›</span></button>`).join('');
+      $('controlsTitle').textContent = `${state.tab} Controls`;
+      $('controls').innerHTML = params.map(([name, value, unit, max]) => `<div class="control"><div class="control-line"><span>${name}</span><strong>${value}${unit}</strong></div><div class="bar"><div class="fill" style="width:${value / max * 100}%"></div></div></div>`).join('');
+      $('modules').innerHTML = modules.map(m => `<button class="module ${state.modules[m] ? '' : 'off'}" data-module="${m}"><span>${m}</span><span class="dot"></span></button>`).join('');
+      $('presetState').textContent = state.preset;
+      $('layersState').textContent = state.layers ? 'Visible' : 'Hidden';
+      $('settingsState').textContent = state.settings ? 'Settings: Open' : '';
+      $('play').textContent = state.playing ? '⏸' : '▶';
+      $('overlay').style.display = state.overlay ? 'flex' : 'none';
+      $('export').textContent = 'Export Planet';
+    }
+    document.addEventListener('click', (event) => {
+      const target = event.target.closest('button');
+      if (!target) return;
+      if (target.dataset.tab) state.tab = target.dataset.tab;
+      if (target.dataset.preset) state.preset = target.dataset.preset;
+      if (target.dataset.module) state.modules[target.dataset.module] = !state.modules[target.dataset.module];
+      if (target.id === 'play') state.playing = !state.playing;
+      if (target.id === 'refresh') $('refreshState').textContent = new Date().toLocaleTimeString();
+      if (target.id === 'view') state.overlay = !state.overlay;
+      if (target.id === 'layers') state.layers = !state.layers;
+      if (target.id === 'settings') state.settings = !state.settings;
+      if (target.id === 'export') target.textContent = `Queued: ${state.preset}`;
+      render();
+    });
+    render();
+  </script>
+</body>
+</html>

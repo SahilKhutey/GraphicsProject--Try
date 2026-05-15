@@ -1,0 +1,65 @@
+#version 430 core
+
+layout(local_size_x = 16, local_size_y = 16) in;
+
+layout(rgba16f, binding = 0) uniform image2D uSSGIMap; // Indirect Lighting Output
+uniform sampler2D gDepth;
+uniform sampler2D gNormal;
+uniform sampler2D gSceneColor; // Lit scene from previous pass
+
+uniform mat4 projection;
+uniform mat4 view;
+uniform mat4 invProj;
+uniform float uTime;
+
+// 1. Ray-Marching Helper
+bool RayMarch(vec3 start, vec3 dir, out vec2 hitUV) {
+    vec3 currentPos = start;
+    float stepSize = 0.05;
+    
+    for(int i = 0; i < 32; i++) {
+        currentPos += dir * stepSize;
+        
+        vec4 projected = projection * vec4(currentPos, 1.0);
+        projected.xyz /= projected.w;
+        vec2 uv = projected.xy * 0.5 + 0.5;
+        
+        if (uv.x < 0.0 || uv.x > 1.0 || uv.y < 0.0 || uv.y > 1.0) return false;
+        
+        float depth = texture(gDepth, uv).r; // Depth in view space
+        if (currentPos.z < depth && abs(currentPos.z - depth) < 0.1) {
+            hitUV = uv;
+            return true;
+        }
+    }
+    return false;
+}
+
+void main() {
+    ivec2 texel = ivec2(gl_GlobalInvocationID.xy);
+    ivec2 size = imageSize(uSSGIMap);
+    if (any(greaterThanEqual(texel, size))) return;
+
+    // 2. Reconstruct View-Space Position & Normal
+    vec2 uv = vec2(texel) / vec2(size);
+    float depth = texture(gDepth, uv).r;
+    vec3 normal = texture(gNormal, uv).rgb;
+    
+    vec3 fragPos = vec3(0.0); // Placeholder for invProj transform
+
+    // 3. Stochastic Hemisphere Sampling
+    vec3 accumulatedGI = vec3(0.0);
+    int rays = 4;
+    
+    for(int i = 0; i < rays; i++) {
+        vec3 rayDir = vec3(0.0); // Placeholder for random hemisphere dir
+        
+        vec2 hitUV;
+        if (RayMarch(fragPos, rayDir, hitUV)) {
+            vec3 hitColor = texture(gSceneColor, hitUV).rgb;
+            accumulatedGI += hitColor * max(dot(normal, rayDir), 0.0);
+        }
+    }
+
+    imageStore(uSSGIMap, texel, vec4(accumulatedGI / float(rays), 1.0));
+}

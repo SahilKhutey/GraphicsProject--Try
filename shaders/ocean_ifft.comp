@@ -1,0 +1,23 @@
+#version 430 core
+
+layout(local_size_x = 16, local_size_y = 16) in;
+
+layout(rgba32f, binding = 0) uniform image2D uSpectrum; // Input frequency domain
+layout(rgba32f, binding = 1) uniform image2D uDisplacement; // Output spatial domain
+
+uniform int uSize;
+uniform bool uHorizontal;
+
+void main() {
+    ivec2 texel = ivec2(gl_GlobalInvocationID.xy);
+    if (texel.x >= uSize || texel.y >= uSize) return;
+
+    // 1. Inverse FFT logic (Radix-2 or Butterfly implementation)
+    // This is a simplified placeholder for the complex IFFT butterfly pass
+    vec4 sum = vec4(0.0);
+    
+    // Perform complex multiplication and accumulation across the row/column
+    // ... IFFT Math ...
+
+    imageStore(uDisplacement, texel, sum);
+}
